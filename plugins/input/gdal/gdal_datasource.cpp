@@ -32,6 +32,8 @@
 
 #include <gdal_version.h>
 
+#include <string>
+
 using mapnik::datasource;
 using mapnik::parameters;
 
@@ -53,16 +55,23 @@ inline GDALDataset* gdal_datasource::open_dataset() const
 {
     MAPNIK_LOG_DEBUG(gdal) << "gdal_datasource: Opening " << dataset_name_;
 
+    std::string name_ (dataset_name_);
+    std::size_t found = name_.find(".nc:");
+    if(found!=std::string::npos){
+        // is asubdataset
+        name_ = "NETCDF:" + name_;
+    }
+
     GDALDataset *dataset;
 #if GDAL_VERSION_NUM >= 1600
     if (shared_dataset_)
     {
-        dataset = reinterpret_cast<GDALDataset*>(GDALOpenShared((dataset_name_).c_str(), GA_ReadOnly));
+        dataset = reinterpret_cast<GDALDataset*>(GDALOpenShared((name_).c_str(), GA_ReadOnly));
     }
     else
 #endif
     {
-        dataset = reinterpret_cast<GDALDataset*>(GDALOpen((dataset_name_).c_str(), GA_ReadOnly));
+        dataset = reinterpret_cast<GDALDataset*>(GDALOpen((name_).c_str(), GA_ReadOnly));
     }
 
     if (! dataset)

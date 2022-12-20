@@ -80,6 +80,12 @@ gdal_datasource::gdal_datasource(parameters const& params)
         dataset_name_ = *file;
     }
 
+    boost::optional<std::string> ncsubdataset = params.get<std::string>("ncsubdataset");
+    if (ncsubdataset)
+    {
+        dataset_name_ = "NETCDF:\"" + *dataset_name_ + "\":" + *ncsubdataset;
+    }
+
     shared_dataset_ = *params.get<mapnik::boolean_type>("shared", false);
     band_ = *params.get<mapnik::value_integer>("band", -1);
     

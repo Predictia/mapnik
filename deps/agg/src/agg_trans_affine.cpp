@@ -38,7 +38,27 @@ const trans_affine& trans_affine::parl_to_parl(const double* src,
     multiply(trans_affine(dst[2] - dst[0], dst[3] - dst[1],
                           dst[4] - dst[0], dst[5] - dst[1],
                           dst[0], dst[1]));
+    // If sx is 0, then we are dealing with a pure horizontal shear.
+    // In this case we force the matrix to some reasonable values
+    // to avoid division by zero, and set the shx to zero.
+    //--------------------
+    
+    /*
+    double eps = 1e-7;
+    if(fabs(sx) < eps)
+    {
+        sx  = eps;
+    }
+
+    // Check if sx / sy are NaN
+    if (sx != sx || sy != sy)
+    {
+        sx = eps;
+        sy = eps;
+    }*/
+
     return *this;
+
 }
 
 //------------------------------------------------------------------------

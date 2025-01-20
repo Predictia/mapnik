@@ -29,6 +29,7 @@
 #include <mapnik/geom_util.hpp>
 #include <mapnik/timer.hpp>
 #include <mapnik/value/types.hpp>
+#include <mapnik/well_known_srs.hpp>
 
 #include <gdal_version.h>
 
@@ -110,6 +111,15 @@ gdal_datasource::gdal_datasource(parameters const& params)
     }
 
     MAPNIK_LOG_DEBUG(gdal) << "gdal_featureset: opened Dataset=" << dataset_.get();
+    
+    std::string projection_(dataset_->GetProjectionRef());
+
+    // If no projection_, mapnik defaults to MAPNIK_GEOGRAPHIC_PROJ
+    // https://github.com/mapnik/mapnik/blob/2e1b32512b1f8b52331994f2a809d8a383c0c984/include/mapnik/layer.hpp#L46
+    if (projection_.empty())
+    {
+        projection_ = mapnik::MAPNIK_GEOGRAPHIC_PROJ;
+    }
 
     nbands_ = dataset_->GetRasterCount();
     width_ = dataset_->GetRasterXSize();
@@ -182,6 +192,23 @@ gdal_datasource::gdal_datasource(parameters const& params)
           double x1 = tr[0] + (width_) * tr[1]; // maxx
           double y1 = tr[3] + (width_) * tr[4]; // maxy
         */
+       /*
+         * ERA5 Fix for -180.125 -> 179.875
+         */
+        std::string proj_str(projection_);
+
+        std::optional<bool> is_geographic = mapnik::is_known_geographic(proj_str);
+
+        if (is_geographic.value_or(false))
+        {
+            // Check if some of the coordinates are out of bounds,
+            // this is a common problem with latlong projections (ERA5)
+            if (x0 < -180.0) {
+                x1 += (-180.0 - x0);
+                x0 = -180.0;                
+            }
+        }
+
 
         extent_.init(x0, y0, x1, y1);
     }

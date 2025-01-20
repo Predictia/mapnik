@@ -293,6 +293,52 @@ bool proj_transform::forward(double* x, double* y, double* z, std::size_t point_
     return true;
 }
 
+/* begin custom code */
+
+// More robust, but expensive, bbox transform
+// in the face of proj4 out of bounds conditions.
+// Can result in 20 -> 10 r/s performance hit.
+// Alternative is to provide proper clipping box
+// in the target srs by setting map 'maximum-extent'
+static bool contains_xy_pole(const proj_transform* proj_transform, box2d<double>& env, const double x, const double y)
+{
+    // Check if the source bbox contains the north pole,
+    // this is not always simple.
+    double guess_x = x;
+    double guess_y = y;
+    double z = 0.0;
+
+    // We transform backwark the north pole from the target srs to the source srs
+    // and check if the result is inside the source bbox.
+    if (proj_transform->forward(guess_x, guess_y, z))
+    {
+        std::cout<< "env: " << env.minx() << ", " << env.miny() << ", " << env.maxx() << ", " << env.maxy() << " => Check if contains: " << guess_x << ", " << guess_y << std::endl;
+        if (env.contains(guess_x, guess_y))
+        {
+            std::cout << "contains: " << guess_x << ", " << guess_y << std::endl;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static bool contains_north_pole(const proj_transform* proj_transform, box2d<double>& env)
+{
+    // Check if the source bbox contains the north pole,
+    // this is not always simple.
+    return contains_xy_pole(proj_transform, env, 0.0, 90.0);
+}
+
+static bool contains_south_pole(const proj_transform* proj_transform, box2d<double>& env)
+{
+    // Check if the source bbox contains the north pole,
+    // this is not always simple.
+    return contains_xy_pole(proj_transform, env, 0.0, -90.0);
+}
+
+/* end custom code */
+
 bool proj_transform::backward(double* x, double* y, double* z, std::size_t point_count, std::size_t offset) const
 {
     if (is_source_equal_dest_)
@@ -426,12 +472,6 @@ bool proj_transform::backward(box2d<double>& box) const
     return true;
 }
 
-// More robust, but expensive, bbox transform
-// in the face of libproj out of bounds conditions.
-// Can result in 20 -> 10 r/s performance hit.
-// Alternative is to provide proper clipping box
-// in the target srs by setting map 'maximum-extent'
-
 bool proj_transform::backward(box2d<double>& env, std::size_t points) const
 {
     if (is_source_equal_dest_)
@@ -440,6 +480,15 @@ bool proj_transform::backward(box2d<double>& env, std::size_t points) const
     if (wgs84_to_merc_ || merc_to_wgs84_)
     {
         return backward(env);
+    }
+
+    if (is_source_longlat_ && is_dest_longlat_)
+    {
+        // Pass
+    }
+    else
+    {
+        points = 100;
     }
 
     box2d<double> result;
@@ -460,6 +509,19 @@ bool proj_transform::backward(box2d<double>& env, std::size_t points) const
             boost::geometry::envelope(coords, bb);
             result.expand_to_include(bb);
         }
+
+        if (is_source_longlat_ && contains_south_pole(this, env))
+        {
+            result.expand_to_include(-180.0, -90.0);
+            result.expand_to_include(180.0, -90.0);
+        }
+
+        if (is_source_longlat_ && contains_north_pole(this, env))
+        {
+            result.expand_to_include(-180.0, 90.0);
+            result.expand_to_include(180.0, 90.0);
+        }
+
         if (is_source_longlat_ && !util::is_clockwise(coords))
         {
             // we've gone to a geographic CS, and our clockwise envelope has

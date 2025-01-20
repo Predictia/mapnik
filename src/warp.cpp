@@ -32,6 +32,7 @@
 #include <mapnik/proj_transform.hpp>
 #include <mapnik/safe_cast.hpp>
 
+#include <mapnik/debug.hpp>
 #include <mapnik/warning.hpp>
 MAPNIK_DISABLE_WARNING_PUSH
 #include <mapnik/warning_ignore_agg.hpp>
@@ -121,6 +122,26 @@ MAPNIK_DECL void warp_image(T& target,
         }
     }
     prj_trans.backward(xs.data(), ys.data(), nullptr, mesh_nx * mesh_ny);
+    // Calculate max_step (max-min / 2)
+    double max = std::numeric_limits<double>::min();
+    double min = std::numeric_limits<double>::max();
+    for (std::size_t j = 0; j < mesh_ny; ++j)
+    {
+        for (std::size_t i = 0; i < mesh_nx; ++i)
+        {
+            // If is invalid, skip
+            if (std::isinf(xs(i, j)))
+            {
+                continue;
+            }
+            max = std::max(max, xs(i, j));
+            min = std::min(min, xs(i, j));
+        }
+    }
+
+    double max_step = (max - min) / 2.0;
+
+    MAPNIK_LOG_DEBUG(warp) << "max_step: " << max_step;
 
     agg::rasterizer_scanline_aa<> rasterizer;
     agg::scanline_bin scanline;
@@ -152,10 +173,74 @@ MAPNIK_DECL void warp_image(T& target,
                                  ys(i + 1, j + 1),
                                  xs(i, j + 1),
                                  ys(i, j + 1)};
+
+            const std::size_t x0 = i * mesh_size;
+            const std::size_t y0 = j * mesh_size;
+            const std::size_t x1 = std::min((i + 1) * mesh_size, source.width());
+            const std::size_t y1 = std::min((j + 1) * mesh_size, source.height());
+
+            // Detect change in direction (so we have surpassed the 180/-180 meridian)
+            // This is difficult to fix. We detect changes if sign of
+            // polygon[0] and polygon[2] are different. If so, we need to split the polygon
+            // in two and render each part separately.
+            if (std::fabs(polygon[0] - polygon[2]) >= max_step)
+            {
+                // For now, just skip this polygon
+                // TODO: Try to detect the boundary and split the polygon
+                // TODO: into two polygons
+                MAPNIK_LOG_WARN(warp) << "Skipping polygon: x=" << xs(i, j) << ", " << ys(i, j);
+                continue;
+            }
+
+            // Skip if any is infinite
+            // This will render an artifact in the image, so we skip it
+            if (std::isinf(polygon[0]) || std::isinf(polygon[1]) || std::isinf(polygon[2]) || std::isinf(polygon[3]) ||
+                std::isinf(polygon[4]) || std::isinf(polygon[5]) || std::isinf(polygon[6]) || std::isinf(polygon[7]))
+            {
+                MAPNIK_LOG_WARN(warp) << "Skipping polygon: x=" << xs(i, j) << ", " << ys(i, j);
+                continue;
+            }
+
             tt.forward(polygon + 0, polygon + 1);
             tt.forward(polygon + 2, polygon + 3);
             tt.forward(polygon + 4, polygon + 5);
             tt.forward(polygon + 6, polygon + 7);
+
+            agg::trans_affine *tr = new agg::trans_affine(polygon, x0, y0, x1, y1);
+
+            if (!tr->is_valid())
+            {
+
+                // Instead of skipping, we can try to fix the transform (adding a different small value at x and y)
+
+                MAPNIK_LOG_WARN(warp) << "Found invalid transform: x=" << xs(i, j) << ", " << ys(i, j);
+
+                double delta_x = 1e-9;
+                double delta_y = 1.1e-9;
+                polygon[0] -= delta_x;
+                polygon[1] -= delta_y;
+
+                polygon[2] += delta_x;
+                polygon[3] -= delta_y;
+
+                polygon[4] -= delta_x;
+                polygon[5] += delta_y;
+
+                polygon[6] += delta_x;
+                polygon[7] += delta_y;
+
+                // Recreate transform
+                delete tr;
+
+                tr = new agg::trans_affine(polygon, x0, y0, x1, y1);
+
+                 if (!tr->is_valid())
+                 {
+                    MAPNIK_LOG_WARN(warp) << "Unable to fix transform: x=" << xs(i, j) << ", " << ys(i, j);
+                    continue;
+                }
+            }
+
 
             rasterizer.reset();
             rasterizer.move_to_d(std::floor(polygon[0]), std::floor(polygon[1]));
@@ -163,14 +248,9 @@ MAPNIK_DECL void warp_image(T& target,
             rasterizer.line_to_d(std::floor(polygon[4]), std::floor(polygon[5]));
             rasterizer.line_to_d(std::floor(polygon[6]), std::floor(polygon[7]));
 
-            const std::size_t x0 = i * mesh_size;
-            const std::size_t y0 = j * mesh_size;
-            const std::size_t x1 = std::min((i + 1) * mesh_size, source.width());
-            const std::size_t y1 = std::min((j + 1) * mesh_size, source.height());
-            const agg::trans_affine tr(polygon, x0, y0, x1, y1);
-            if (tr.is_valid())
+            if (tr->is_valid())
             {
-                interpolator_type interpolator(tr);
+                interpolator_type interpolator(*tr);
                 if (scaling_method == SCALING_NEAR)
                 {
                     using span_gen_type = typename detail::agg_scaling_traits<image_type>::span_image_filter;

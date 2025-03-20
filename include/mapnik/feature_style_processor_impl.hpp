@@ -273,7 +273,7 @@ void feature_style_processor<Processor>::prepare_layer(layer_rendering_material&
     bool early_return = false;
 
     // first, try intersection of map extent forward projected into layer srs
-    if (proj_trans_ptr->forward(buffered_query_ext, PROJ_ENVELOPE_POINTS) && buffered_query_ext.intersects(layer_ext))
+    if (proj_trans_ptr->forward(buffered_query_ext, PROJ_ENVELOPE_POINTS) && buffered_query_ext.valid() && buffered_query_ext.intersects(layer_ext))
     {
         fw_success = true;
         layer_ext.clip(buffered_query_ext);

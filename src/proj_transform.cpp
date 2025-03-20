@@ -472,6 +472,74 @@ bool proj_transform::backward(box2d<double>& box) const
     return true;
 }
 
+bool proj_transform::slow_forward(
+    box2d<double>& env, std::size_t points
+) const {
+    // Slow reprojection:
+    // - Sometimes, the bounding is outside the map projection, but the intersection is not empty
+    // We will find the new valid corner points and reproject them
+    // - This is a slow operation, but it is better than not rendering the layer
+    
+    if (!env.valid()) {
+        return false;
+    }
+
+    if (points < 10) {
+        points = 10;
+    }
+    double x_step = env.width() / points;
+    double y_step = env.height() / points;
+
+    box2d<double> new_layer_ext;
+    bool started = false;
+
+    int max_iter = points;
+
+    for (
+        double ix = env.minx();
+        ix <= env.maxx();
+        ix += x_step
+    ) {
+        if (max_iter-- < 0) {
+            MAPNIK_LOG_ERROR(feature_style_processor)
+                << "proj_transform::slow_forward: max_iter reached";
+            break;
+        }
+
+        for (
+            double iy = env.miny();
+            iy <= env.maxy();
+            iy += y_step
+        ) {
+            // Check if we can reproject this point
+            double px = ix;
+            double py = iy;
+            double pz = 0.0;
+            if (forward(px, py, pz)) {
+
+                // Ensure the point is valid
+                if (!std::isfinite(px) || !std::isfinite(py)) {
+                    continue;
+                }
+                
+                if (started) {
+                    new_layer_ext.init(px, py, px, py);
+                    started = false;
+                }
+                new_layer_ext.expand_to_include(px, py);
+                started = false;
+            }
+        }
+    }
+
+    // Update the bounding box
+    if (new_layer_ext.valid()) {
+        env.init(new_layer_ext.minx(), new_layer_ext.miny(), new_layer_ext.maxx(), new_layer_ext.maxy());
+    }
+
+    return started;
+}
+
 bool proj_transform::backward(box2d<double>& env, std::size_t points) const
 {
     if (is_source_equal_dest_)

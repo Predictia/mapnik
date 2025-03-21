@@ -481,6 +481,7 @@ bool proj_transform::slow_forward(
     // - This is a slow operation, but it is better than not rendering the layer
     
     if (!env.valid()) {
+        std::cout<<"env not valid"<<std::endl;
         return false;
     }
 
@@ -494,6 +495,57 @@ bool proj_transform::slow_forward(
     bool started = false;
 
     int max_iter = points;
+
+    // Start with the corner points
+    {
+        double x = env.minx();
+        double y = env.miny();
+        double z = 0.0;
+
+        if (forward(x, y, z) && std::isfinite(x) && std::isfinite(y)) {
+            if (!started) {
+                new_layer_ext.init(x, y, x, y);
+            } 
+            started = true;
+        }
+
+        x = env.minx();
+        y = env.maxy();
+        z = 0.0;
+
+        if (forward(x, y, z) && std::isfinite(x) && std::isfinite(y)) {
+            if (!started) {
+                new_layer_ext.init(x, y, x, y);
+            }
+            started = true;
+            new_layer_ext.expand_to_include(x, y);
+        }
+
+        x = env.maxx();
+        y = env.miny();
+        z = 0.0;
+
+        if (forward(x, y, z) && std::isfinite(x) && std::isfinite(y)) {
+            if (!started) {
+                new_layer_ext.init(x, y, x, y);
+            }
+            started = true;
+            new_layer_ext.expand_to_include(x, y);
+        }
+
+        x = env.maxx();
+        y = env.maxy();
+        z = 0.0;
+
+        if (forward(x, y, z) && std::isfinite(x) && std::isfinite(y)) {
+            if (!started) {
+                new_layer_ext.init(x, y, x, y);
+            }
+            new_layer_ext.expand_to_include(x, y);
+            started = true;
+        }
+
+    }
 
     for (
         double ix = env.minx();
@@ -522,19 +574,22 @@ bool proj_transform::slow_forward(
                     continue;
                 }
                 
-                if (started) {
+                if (!started) {
                     new_layer_ext.init(px, py, px, py);
-                    started = false;
+                    started = true;
                 }
                 new_layer_ext.expand_to_include(px, py);
-                started = false;
             }
         }
     }
 
     // Update the bounding box
+    std::cout<<"new_layer_ext: "<<new_layer_ext.minx()<<", "<<new_layer_ext.miny()<<", "<<new_layer_ext.maxx()<<", "<<new_layer_ext.maxy()<<std::endl;
     if (new_layer_ext.valid()) {
         env.init(new_layer_ext.minx(), new_layer_ext.miny(), new_layer_ext.maxx(), new_layer_ext.maxy());
+    } else {
+        std::cout<<"new_layer_ext not valid"<<std::endl;
+        return false;
     }
 
     return started;

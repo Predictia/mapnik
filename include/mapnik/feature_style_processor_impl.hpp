@@ -276,13 +276,13 @@ void feature_style_processor<Processor>::prepare_layer(layer_rendering_material&
     // first, try intersection of map extent forward projected into layer srs
     if (proj_trans_ptr->forward(buffered_query_ext, PROJ_ENVELOPE_POINTS) && buffered_query_ext.intersects(layer_ext))
     {
-        std::cout<<"Direct forward projection: "<<buffered_query_ext<<std::endl;
 
         if (!buffered_query_ext.valid()) {
             // The reprojection was not successful, so we need to use the slow_forward method
-            std::cout<<"Direct forward projection failed: "<<buffered_query_ext<<std::endl;
             // Restore the buffered_query_ext
             buffered_query_ext = buffered_query_ext_map_srs;
+
+            std::cout<<"Direct forward projection failed. Restoring: "<<buffered_query_ext<<std::endl;
 
             if (
                 !proj_trans_ptr->slow_forward(buffered_query_ext, PROJ_ENVELOPE_POINTS)
@@ -293,6 +293,7 @@ void feature_style_processor<Processor>::prepare_layer(layer_rendering_material&
             }
             std::cout<<"Slow forward projection: "<<buffered_query_ext<<std::endl;
         }
+        
         fw_success = true;
         layer_ext.clip(buffered_query_ext);
     }

@@ -268,14 +268,31 @@ void feature_style_processor<Processor>::prepare_layer(layer_rendering_material&
     }
 
     box2d<double> layer_ext = lay.envelope();
+    box2d<double> layer_ext_backup = layer_ext;
     const box2d<double> buffered_query_ext_map_srs = buffered_query_ext;
     bool fw_success = false;
     bool early_return = false;
 
     // first, try intersection of map extent forward projected into layer srs
-    if (proj_trans_ptr->forward(buffered_query_ext, PROJ_ENVELOPE_POINTS) && buffered_query_ext.valid() && buffered_query_ext.intersects(layer_ext))
+    if (proj_trans_ptr->forward(buffered_query_ext, PROJ_ENVELOPE_POINTS) && buffered_query_ext.intersects(layer_ext))
     {
         std::cout<<"Direct forward projection: "<<buffered_query_ext<<std::endl;
+
+        if (!buffered_query_ext.valid()) {
+            // The reprojection was not successful, so we need to use the slow_forward method
+            std::cout<<"Direct forward projection failed: "<<buffered_query_ext<<std::endl;
+            // Restore the buffered_query_ext
+            buffered_query_ext = buffered_query_ext_map_srs;
+
+            if (
+                !proj_trans_ptr->slow_forward(buffered_query_ext, PROJ_ENVELOPE_POINTS)
+            ) {
+                MAPNIK_LOG_ERROR(feature_style_processor)
+                << "feature_style_processor: Layer=" << lay.name() << " extent=" << buffered_query_ext << " in map projection "
+                << " did not reproject properly to layer projection";
+            }
+            std::cout<<"Slow forward projection: "<<buffered_query_ext<<std::endl;
+        }
         fw_success = true;
         layer_ext.clip(buffered_query_ext);
     }
@@ -288,31 +305,18 @@ void feature_style_processor<Processor>::prepare_layer(layer_rendering_material&
     // next try intersection of layer extent back projected into map srs
     else if (proj_trans_ptr->backward(layer_ext, PROJ_ENVELOPE_POINTS) && layer_ext.valid() && buffered_query_ext_map_srs.intersects(layer_ext))
     {
-        std::cout<<"Before clipping: "<<buffered_query_ext_map_srs<<" Layer Ext: "<<layer_ext<<std::endl;
 
         layer_ext.clip(buffered_query_ext_map_srs);
-
-        std::cout<<"Direct backward projection: "<<buffered_query_ext_map_srs<<" Layer Ext: "<<layer_ext<<std::endl;
-
-
-        box2d<double> pre_layer_ext = box2d<double>(layer_ext);
 
         // forward project layer extent back into native projection
         if (!proj_trans_ptr->forward(layer_ext, PROJ_ENVELOPE_POINTS) || !layer_ext.valid())
         {
-            layer_ext = pre_layer_ext;
+            layer_ext = layer_ext_backup; // restore original layer extent (At least, is the whole layer)
 
-            if (
-                proj_trans_ptr->slow_forward(layer_ext, PROJ_ENVELOPE_POINTS)
-            ) {
-                MAPNIK_LOG_ERROR(feature_style_processor)
-                << "feature_style_processor: Layer=" << lay.name() << " extent=" << layer_ext << " in map projection "
-                << " did not reproject properly back to layer projection";
-            }
+            MAPNIK_LOG_ERROR(feature_style_processor)
+            << "feature_style_processor: Layer=" << lay.name() << " extent=" << layer_ext << " in map projection "
+            << " did not reproject properly back to layer projection";
         }
-        
-        // Show the layer extent in the map projection
-        std::cout<<"[MAP] Backward projection: "<<layer_ext<<std::endl;
     }
     else
     {

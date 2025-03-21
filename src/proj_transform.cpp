@@ -484,8 +484,8 @@ bool proj_transform::slow_forward(
         return false;
     }
 
-    if (points < 10) {
-        points = 10;
+    if (points < 100) {
+        points = 100;
     }
     double x_step = env.width() / points;
     double y_step = env.height() / points;

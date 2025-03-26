@@ -271,6 +271,9 @@ MAPNIK_DECL void warp_image(T& target,
                     agg::render_scanlines_bin(rasterizer, scanline, rb, sa, sg);
                 }
             }
+
+            delete tr;
+            
         }
     }
 }

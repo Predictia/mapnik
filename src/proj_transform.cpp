@@ -557,9 +557,6 @@ bool proj_transform::slow_forward(
 
     }
 
-    bool lastValidX = false;
-    bool lastValidY = false;
-
     for (
         double ix = env.minx();
         ix <= env.maxx();
@@ -570,8 +567,6 @@ bool proj_transform::slow_forward(
                 << "proj_transform::slow_forward: max_iter reached";
             break;
         }
-
-        lastValidY = false;
 
         for (
             double iy = env.miny();
@@ -586,41 +581,8 @@ bool proj_transform::slow_forward(
 
                 // Ensure the point is valid
                 if (!std::isfinite(px) || !std::isfinite(py)) {
-                    lastValidY = false;
                     continue;
                 }
-
-                if (!lastValidY) {
-                    // Iterate in y_step/10 in order to find the first valid point in a finer resolution
-                    double from_y = iy - y_step;
-                    double to_y = iy;
-
-                    // Find the first valid point
-                    double from_to_step = (to_y - from_y) / 10;
-
-                    std::cout<<"Fine tune y: "<<from_y<<", "<<to_y<<", "<<from_to_step<<std::endl;
-                    for (double j = from_y; j <= to_y; j += from_to_step) {
-                        double px2 = ix;
-                        double py2 = j;
-                        double pz2 = 0.0;
-                        if (!forward(px2, py2, pz2)) {
-                            continue;
-                        }
-                        
-                        if (std::isfinite(px2) && std::isfinite(py2)) {    
-                            if (!started) {
-                                new_layer_ext.init(px, py, px, py);
-                                started = true;
-                            }
-                            new_layer_ext.expand_to_include(px, py);
-                            break;
-                        }
-                    }
-
-                    std::cout<<"Unable to find valid point for y: "<<iy<<std::endl;
-                }
-
-                lastValidY = true;
 
                 // If the last point was invalid, we might want to decrease the 
                 

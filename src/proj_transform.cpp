@@ -473,7 +473,7 @@ bool proj_transform::backward(box2d<double>& box) const
 }
 
 bool proj_transform::slow_forward(
-    box2d<double>& env, std::size_t points
+    box2d<double>& env, box2d<double>& layer_ext, std::size_t points
 ) const {
     // Slow reprojection:
     // - Sometimes, the bounding is outside the map projection, but the intersection is not empty
@@ -496,6 +496,11 @@ bool proj_transform::slow_forward(
 
     int max_iter = points;
 
+    bool validTopRight = false;
+    bool validTopLeft = false;
+    bool validBottomRight = false;
+    bool validBottomLeft = false;
+
     // Start with the corner points
     {
         double x = env.minx();
@@ -505,7 +510,9 @@ bool proj_transform::slow_forward(
         if (forward(x, y, z) && std::isfinite(x) && std::isfinite(y)) {
             if (!started) {
                 new_layer_ext.init(x, y, x, y);
-            } 
+            }
+
+            validBottomLeft = true;
             started = true;
         }
 
@@ -518,6 +525,7 @@ bool proj_transform::slow_forward(
                 new_layer_ext.init(x, y, x, y);
             }
             started = true;
+            validTopLeft = true;
             new_layer_ext.expand_to_include(x, y);
         }
 
@@ -530,6 +538,7 @@ bool proj_transform::slow_forward(
                 new_layer_ext.init(x, y, x, y);
             }
             started = true;
+            validBottomRight = true;
             new_layer_ext.expand_to_include(x, y);
         }
 
@@ -542,10 +551,14 @@ bool proj_transform::slow_forward(
                 new_layer_ext.init(x, y, x, y);
             }
             new_layer_ext.expand_to_include(x, y);
+            validTopRight = true;
             started = true;
         }
 
     }
+
+    bool lastValidX = false;
+    bool lastValidY = false;
 
     for (
         double ix = env.minx();
@@ -557,6 +570,8 @@ bool proj_transform::slow_forward(
                 << "proj_transform::slow_forward: max_iter reached";
             break;
         }
+
+        lastValidY = false;
 
         for (
             double iy = env.miny();
@@ -571,8 +586,43 @@ bool proj_transform::slow_forward(
 
                 // Ensure the point is valid
                 if (!std::isfinite(px) || !std::isfinite(py)) {
+                    lastValidY = false;
                     continue;
                 }
+
+                if (!lastValidY) {
+                    // Iterate in y_step/10 in order to find the first valid point in a finer resolution
+                    double from_y = iy - y_step;
+                    double to_y = iy;
+
+                    // Find the first valid point
+                    double from_to_step = (to_y - from_y) / 10;
+
+                    std::cout<<"Fine tune y: "<<from_y<<", "<<to_y<<", "<<from_to_step<<std::endl;
+                    for (double j = from_y; j <= to_y; j += from_to_step) {
+                        double px2 = ix;
+                        double py2 = j;
+                        double pz2 = 0.0;
+                        if (!forward(px2, py2, pz2)) {
+                            continue;
+                        }
+                        
+                        if (std::isfinite(px2) && std::isfinite(py2)) {    
+                            if (!started) {
+                                new_layer_ext.init(px, py, px, py);
+                                started = true;
+                            }
+                            new_layer_ext.expand_to_include(px, py);
+                            break;
+                        }
+                    }
+
+                    std::cout<<"Unable to find valid point for y: "<<iy<<std::endl;
+                }
+
+                lastValidY = true;
+
+                // If the last point was invalid, we might want to decrease the 
                 
                 if (!started) {
                     new_layer_ext.init(px, py, px, py);
@@ -585,6 +635,24 @@ bool proj_transform::slow_forward(
 
     // Update the bounding box
     std::cout<<"new_layer_ext: "<<new_layer_ext.minx()<<", "<<new_layer_ext.miny()<<", "<<new_layer_ext.maxx()<<", "<<new_layer_ext.maxy()<<std::endl;
+
+    // Update according to the corners, using box2d<double>& layer_ext as the corner reference
+    if (!validBottomLeft) {
+        new_layer_ext.expand_to_include(layer_ext.minx(), layer_ext.miny());
+    }
+
+    if (!validBottomRight) {
+        new_layer_ext.expand_to_include(layer_ext.maxx(), layer_ext.miny());
+    }
+
+    if (!validTopLeft) {
+        new_layer_ext.expand_to_include(layer_ext.minx(), layer_ext.maxy());
+    }
+
+    if (!validTopRight) {
+        new_layer_ext.expand_to_include(layer_ext.maxx(), layer_ext.maxy());
+    }
+
     if (new_layer_ext.valid()) {
         env.init(new_layer_ext.minx(), new_layer_ext.miny(), new_layer_ext.maxx(), new_layer_ext.maxy());
     } else {

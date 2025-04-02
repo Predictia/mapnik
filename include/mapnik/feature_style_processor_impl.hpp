@@ -285,7 +285,7 @@ void feature_style_processor<Processor>::prepare_layer(layer_rendering_material&
             std::cout<<"Direct forward projection failed. Restoring: "<<buffered_query_ext<<std::endl;
 
             if (
-                !proj_trans_ptr->slow_forward(buffered_query_ext, PROJ_ENVELOPE_POINTS)
+                !proj_trans_ptr->slow_forward(buffered_query_ext, layer_ext, PROJ_ENVELOPE_POINTS)
             ) {
                 MAPNIK_LOG_ERROR(feature_style_processor)
                 << "feature_style_processor: Layer=" << lay.name() << " extent=" << buffered_query_ext << " in map projection "

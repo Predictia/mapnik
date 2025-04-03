@@ -157,7 +157,6 @@ bool binary_search(PJ* proj, point* border, point ua, point ub)
     // If all are valid, this method won't work
     if (is_valid_trans(ta) && is_valid_trans(tb))
     {
-        // Set tb
         border->x = tb.x;
         border->y = tb.y;
         return true;
@@ -218,7 +217,7 @@ bool binary_search(PJ* proj, point* border, point ua, point ub)
 
 bbox find_border(PJ *proj, bbox boundingbox)
 {
-    int points = 100;
+    int points = 4;
 
     bbox projected = bbox();
 
@@ -230,6 +229,8 @@ bbox find_border(PJ *proj, bbox boundingbox)
     double stepX = (endX - startX) / points;
     double stepY = (endY - startY) / points;
 
+    // Substract the minimum double distance, to avoid double precision problems
+
     if (stepX == 0)
     {
         stepX = 1;
@@ -240,13 +241,16 @@ bbox find_border(PJ *proj, bbox boundingbox)
         stepY = 1;
     }
 
+    stepX = stepX - std::numeric_limits<double>::epsilon();
+    stepY = stepY - std::numeric_limits<double>::epsilon();
+
     point* border = new point(0, 0);
 
     // Iterate over x
-    for (double y = startY; y <= endY; y += stepY)
-    {
-        for (double x = startX; x <= endX; x += stepX)
-        {
+    for (int iy = 0; iy <= points; iy++) {
+        double y = startY + iy * stepY;
+        for (int ix = 0; ix <= points; ix++) {
+            double x = startX + ix * stepX;
             double lastX = x - stepX;
             if (lastX < startX)
             {
@@ -262,10 +266,11 @@ bbox find_border(PJ *proj, bbox boundingbox)
     }
 
     // Iterate over y
-    for (double x = startX; x <= endX; x += stepX)
-    {
-        for (double y = startY; y <= endY; y += stepY)
-        {
+
+    for (int ix = 0; ix <= points; ix++) {
+        double x = startX + ix * stepX;
+        for (int iy = 0; iy <= points; iy++) {
+            double y = startY + iy * stepY;
             double lastY = y - stepY;
             if (lastY < startY)
             {

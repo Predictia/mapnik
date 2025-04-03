@@ -313,7 +313,6 @@ static bool contains_xy_pole(const proj_transform* proj_transform, box2d<double>
     // and check if the result is inside the source bbox.
     if (proj_transform->forward(guess_x, guess_y, z))
     {
-        std::cout<< "env: " << env.minx() << ", " << env.miny() << ", " << env.maxx() << ", " << env.maxy() << " => Check if contains: " << guess_x << ", " << guess_y << std::endl;
         if (env.contains(guess_x, guess_y))
         {
             std::cout << "contains: " << guess_x << ", " << guess_y << std::endl;
@@ -481,8 +480,7 @@ bool proj_transform::slow_forward(
     // We will find the new valid corner points and reproject them
     // - This is a slow operation, but it is better than not rendering the layer
     
-
-    std::cout<<"Using slow_forward"<<std::endl;
+    std::cout<<"Using slow_forward: " << env<<std::endl;
 
     if (!env.valid()) {
         std::cout<<"env not valid"<<std::endl;

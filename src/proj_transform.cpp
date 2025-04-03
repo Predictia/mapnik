@@ -481,6 +481,9 @@ bool proj_transform::slow_forward(
     // We will find the new valid corner points and reproject them
     // - This is a slow operation, but it is better than not rendering the layer
     
+
+    std::cout<<"Using slow_forward"<<std::endl;
+
     if (!env.valid()) {
         std::cout<<"env not valid"<<std::endl;
         return false;

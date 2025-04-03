@@ -217,7 +217,7 @@ bool binary_search(PJ* proj, point* border, point ua, point ub)
 
 bbox find_border(PJ *proj, bbox boundingbox)
 {
-    int points = 4;
+    int points = 8;
 
     bbox projected = bbox();
 

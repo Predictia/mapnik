@@ -26,6 +26,7 @@
 #include <mapnik/geometry/multi_point.hpp>
 #include <mapnik/projection.hpp>
 #include <mapnik/proj_transform.hpp>
+#include <mapnik/proj_transform_utils.hpp>
 #include <mapnik/coord.hpp>
 #include <mapnik/util/is_clockwise.hpp>
 #include <mapnik/util/trim.hpp>
@@ -485,144 +486,18 @@ bool proj_transform::slow_forward(
         return false;
     }
 
-    if (points < 100) {
-        points = 100;
-    }
-    double x_step = env.width() / points;
-    double y_step = env.height() / points;
+    bbox source(env.minx(), env.miny(), env.maxx(), env.maxy());
 
-    box2d<double> new_layer_ext;
-    bool started = false;
+    bbox result = find_border(
+        transform_,
+        source
+    );
+    env.init(result.minX, result.minY, result.maxX, result.maxY);
 
-    int max_iter = points;
-
-    bool validTopRight = false;
-    bool validTopLeft = false;
-    bool validBottomRight = false;
-    bool validBottomLeft = false;
-
-    // Start with the corner points
-    {
-        double x = env.minx();
-        double y = env.miny();
-        double z = 0.0;
-
-        if (forward(x, y, z) && std::isfinite(x) && std::isfinite(y)) {
-            if (!started) {
-                new_layer_ext.init(x, y, x, y);
-            }
-
-            validBottomLeft = true;
-            started = true;
-        }
-
-        x = env.minx();
-        y = env.maxy();
-        z = 0.0;
-
-        if (forward(x, y, z) && std::isfinite(x) && std::isfinite(y)) {
-            if (!started) {
-                new_layer_ext.init(x, y, x, y);
-            }
-            started = true;
-            validTopLeft = true;
-            new_layer_ext.expand_to_include(x, y);
-        }
-
-        x = env.maxx();
-        y = env.miny();
-        z = 0.0;
-
-        if (forward(x, y, z) && std::isfinite(x) && std::isfinite(y)) {
-            if (!started) {
-                new_layer_ext.init(x, y, x, y);
-            }
-            started = true;
-            validBottomRight = true;
-            new_layer_ext.expand_to_include(x, y);
-        }
-
-        x = env.maxx();
-        y = env.maxy();
-        z = 0.0;
-
-        if (forward(x, y, z) && std::isfinite(x) && std::isfinite(y)) {
-            if (!started) {
-                new_layer_ext.init(x, y, x, y);
-            }
-            new_layer_ext.expand_to_include(x, y);
-            validTopRight = true;
-            started = true;
-        }
-
-    }
-
-    for (
-        double ix = env.minx();
-        ix <= env.maxx();
-        ix += x_step
-    ) {
-        if (max_iter-- < 0) {
-            MAPNIK_LOG_ERROR(feature_style_processor)
-                << "proj_transform::slow_forward: max_iter reached";
-            break;
-        }
-
-        for (
-            double iy = env.miny();
-            iy <= env.maxy();
-            iy += y_step
-        ) {
-            // Check if we can reproject this point
-            double px = ix;
-            double py = iy;
-            double pz = 0.0;
-            if (forward(px, py, pz)) {
-
-                // Ensure the point is valid
-                if (!std::isfinite(px) || !std::isfinite(py)) {
-                    continue;
-                }
-
-                // If the last point was invalid, we might want to decrease the 
-                
-                if (!started) {
-                    new_layer_ext.init(px, py, px, py);
-                    started = true;
-                }
-                new_layer_ext.expand_to_include(px, py);
-            }
-        }
-    }
-
-    // Update the bounding box
-    std::cout<<"new_layer_ext: "<<new_layer_ext.minx()<<", "<<new_layer_ext.miny()<<", "<<new_layer_ext.maxx()<<", "<<new_layer_ext.maxy()<<std::endl;
-
-    // Update according to the corners, using box2d<double>& layer_ext as the corner reference
-    if (!validBottomLeft) {
-        new_layer_ext.expand_to_include(layer_ext.minx(), layer_ext.miny());
-    }
-
-    if (!validBottomRight) {
-        new_layer_ext.expand_to_include(layer_ext.maxx(), layer_ext.miny());
-    }
-
-    if (!validTopLeft) {
-        new_layer_ext.expand_to_include(layer_ext.minx(), layer_ext.maxy());
-    }
-
-    if (!validTopRight) {
-        new_layer_ext.expand_to_include(layer_ext.maxx(), layer_ext.maxy());
-    }
-
-    if (new_layer_ext.valid()) {
-        env.init(new_layer_ext.minx(), new_layer_ext.miny(), new_layer_ext.maxx(), new_layer_ext.maxy());
-    } else {
-        std::cout<<"new_layer_ext not valid"<<std::endl;
+    if (!env.valid()) {
         return false;
     }
-
-    return started;
+    return true;
 }
 
 bool proj_transform::backward(box2d<double>& env, std::size_t points) const

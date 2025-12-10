@@ -472,30 +472,28 @@ bool proj_transform::backward(box2d<double>& box) const
     return true;
 }
 
-bool proj_transform::slow_forward(
-    box2d<double>& env, box2d<double>& layer_ext, std::size_t points
-) const {
+bool proj_transform::slow_forward(box2d<double>& env, box2d<double>& layer_ext, std::size_t points) const
+{
     // Slow reprojection:
     // - Sometimes, the bounding is outside the map projection, but the intersection is not empty
     // We will find the new valid corner points and reproject them
     // - This is a slow operation, but it is better than not rendering the layer
-    
-    std::cout<<"Using slow_forward: " << env<<std::endl;
 
-    if (!env.valid()) {
-        std::cout<<"env not valid"<<std::endl;
+    std::cout << "Using slow_forward: " << env << std::endl;
+
+    if (!env.valid())
+    {
+        std::cout << "env not valid" << std::endl;
         return false;
     }
 
     bbox source(env.minx(), env.miny(), env.maxx(), env.maxy());
 
-    bbox result = find_border(
-        transform_,
-        source
-    );
+    bbox result = find_border(transform_, source);
     env.init(result.minX, result.minY, result.maxX, result.maxY);
 
-    if (!env.valid()) {
+    if (!env.valid())
+    {
         return false;
     }
     return true;

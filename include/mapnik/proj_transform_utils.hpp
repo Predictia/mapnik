@@ -326,18 +326,28 @@ bbox find_border(PJ* proj, bbox boundingbox)
 
     // Substract the minimum double distance, to avoid double precision problems
 
-    if (stepX == 0)
+    if (stepX <= 0)
     {
         stepX = 1;
     }
 
-    if (stepY == 0)
+    if (stepY <= 0)
     {
         stepY = 1;
     }
 
     stepX = stepX - std::numeric_limits<double>::epsilon();
     stepY = stepY - std::numeric_limits<double>::epsilon();
+
+    if (stepX <= 0)
+    {
+        stepX = 1;
+    }
+
+    if (stepY <= 0)
+    {
+        stepY = 1;
+    }
 
     point* border = new point(0, 0);
 

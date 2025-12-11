@@ -324,10 +324,6 @@ bbox find_border(PJ* proj, bbox boundingbox)
     double stepX = (endX - startX) / points;
     double stepY = (endY - startY) / points;
 
-    // If proj has stere, directly (-180 to 180) in x
-    std::cout << "proj->*: " << proj << std::endl;
-    // Dump all of proj for debugging
-
     // Substract the minimum double distance, to avoid double precision problems
 
     if (stepX == 0)

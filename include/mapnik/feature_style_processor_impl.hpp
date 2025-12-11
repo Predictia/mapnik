@@ -276,37 +276,67 @@ void feature_style_processor<Processor>::prepare_layer(layer_rendering_material&
     // first, try intersection of map extent forward projected into layer srs
     if (proj_trans_ptr->forward(buffered_query_ext, PROJ_ENVELOPE_POINTS) && buffered_query_ext.intersects(layer_ext))
     {
+        std::string def = proj_trans_ptr->definition();
+        // if PJ has stere, we need to handle the -180 to 180 longitude wrap
+        if (def.find("=stere") != std::string::npos || def.find("=laea") != std::string::npos)
+        {
+            std::cout << "PJ has stere, handling -180 to 180 longitude wrap" << std::endl;
+            // Add -180 to 180 longitude wrap handling
+            buffered_query_ext.expand_to_include(-180.0, buffered_query_ext.miny());
+            buffered_query_ext.expand_to_include(180.0, buffered_query_ext.miny());
 
-        if (!buffered_query_ext.valid()) {
+            layer_ext.expand_to_include(-180.0, layer_ext.miny());
+            layer_ext.expand_to_include(180.0, layer_ext.miny());
+
+            // Check for -90 or 90 latitude wrap
+            if (def.find("lat_0=90") != std::string::npos)
+            {
+                buffered_query_ext.expand_to_include(buffered_query_ext.minx(), 90.0);
+                buffered_query_ext.expand_to_include(buffered_query_ext.maxx(), 90.0);
+
+                layer_ext.expand_to_include(layer_ext.minx(), 90.0);
+                layer_ext.expand_to_include(layer_ext.maxx(), 90.0);
+            }
+            else if (def.find("lat_0=-90") != std::string::npos)
+            {
+                buffered_query_ext.expand_to_include(buffered_query_ext.minx(), -90.0);
+                buffered_query_ext.expand_to_include(buffered_query_ext.maxx(), -90.0);
+
+                layer_ext.expand_to_include(layer_ext.minx(), -90.0);
+                layer_ext.expand_to_include(layer_ext.maxx(), -90.0);
+            }
+        }
+
+        if (!buffered_query_ext.valid())
+        {
             // The reprojection was not successful, so we need to use the slow_forward method
             // Restore the buffered_query_ext
             buffered_query_ext = buffered_query_ext_map_srs;
 
-            std::cout<<"Direct forward projection failed. Restoring: "<<buffered_query_ext<<std::endl;
+            std::cout << "Direct forward projection failed. Restoring: " << buffered_query_ext << std::endl;
 
-            if (
-                !proj_trans_ptr->slow_forward(buffered_query_ext, layer_ext, PROJ_ENVELOPE_POINTS)
-            ) {
-                MAPNIK_LOG_ERROR(feature_style_processor)
-                << "feature_style_processor: Layer=" << lay.name() << " extent=" << buffered_query_ext << " in map projection "
-                << " did not reproject properly to layer projection";
+            if (!proj_trans_ptr->slow_forward(buffered_query_ext, layer_ext, PROJ_ENVELOPE_POINTS))
+            {
+                MAPNIK_LOG_ERROR(feature_style_processor) << "feature_style_processor: Layer=" << lay.name()
+                                                          << " extent=" << buffered_query_ext << " in map projection "
+                                                          << " did not reproject properly to layer projection";
             }
-            std::cout<<"Slow forward projection: "<<buffered_query_ext<<std::endl;
+            std::cout << "Slow forward projection: " << buffered_query_ext << std::endl;
         }
-        
+
         fw_success = true;
         layer_ext.clip(buffered_query_ext);
     }
     // if no intersection and projections are also equal, early return
     else if (proj_trans_ptr->equal())
     {
-        std::cout<<"EQ Direct forward projection: "<<buffered_query_ext<<std::endl;
+        std::cout << "EQ Direct forward projection: " << buffered_query_ext << std::endl;
         early_return = true;
     }
     // next try intersection of layer extent back projected into map srs
-    else if (proj_trans_ptr->backward(layer_ext, PROJ_ENVELOPE_POINTS) && layer_ext.valid() && buffered_query_ext_map_srs.intersects(layer_ext))
+    else if (proj_trans_ptr->backward(layer_ext, PROJ_ENVELOPE_POINTS) && layer_ext.valid() &&
+             buffered_query_ext_map_srs.intersects(layer_ext))
     {
-
         layer_ext.clip(buffered_query_ext_map_srs);
 
         // forward project layer extent back into native projection
@@ -315,8 +345,8 @@ void feature_style_processor<Processor>::prepare_layer(layer_rendering_material&
             layer_ext = layer_ext_backup; // restore original layer extent (At least, is the whole layer)
 
             MAPNIK_LOG_ERROR(feature_style_processor)
-            << "feature_style_processor: Layer=" << lay.name() << " extent=" << layer_ext << " in map projection "
-            << " did not reproject properly back to layer projection";
+              << "feature_style_processor: Layer=" << lay.name() << " extent=" << layer_ext << " in map projection "
+              << " did not reproject properly back to layer projection";
         }
     }
     else
@@ -348,12 +378,11 @@ void feature_style_processor<Processor>::prepare_layer(layer_rendering_material&
                 }
             }
         }
-        std::cout<<"Early return: "<<lay.name()<<std::endl;
+        std::cout << "Early return: " << lay.name() << std::endl;
         return;
     }
 
-
-    std::cout<<"NO Early return: "<<lay.name()<<std::endl;
+    std::cout << "NO Early return: " << lay.name() << std::endl;
 
     // if we've got this far, now prepare the unbuffered extent
     // which is used as a bbox for clipping geometries
@@ -426,10 +455,10 @@ void feature_style_processor<Processor>::prepare_layer(layer_rendering_material&
     query::resolution_type res(width / qw, height / qh);
 
     // Show the resolution
-    std::cout<<"Resolution: "<<std::endl;
-    std::cout<<"Query Extent: "<<query_ext<<std::endl;
-    std::cout<<"WxH: "<<qw<<"x"<<qh<<std::endl;
-    std::cout<<"Res x: "<<(width / qw)<<" Res y: "<<(height / qh)<<std::endl;
+    std::cout << "Resolution: " << std::endl;
+    std::cout << "Query Extent: " << query_ext << std::endl;
+    std::cout << "WxH: " << qw << "x" << qh << std::endl;
+    std::cout << "Res x: " << (width / qw) << " Res y: " << (height / qh) << std::endl;
 
     query q(layer_ext, res, scale_denom, extent);
     q.set_variables(p.variables());

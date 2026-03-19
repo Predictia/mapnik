@@ -100,6 +100,8 @@ void projection::init_proj()
     if (!proj_)
     {
         proj_ctx_ = proj_context_create();
+        proj_log_level(proj_ctx_, PJ_LOG_NONE);
+        
         proj_ = proj_create(proj_ctx_, params_.c_str());
         if (!proj_ || !proj_ctx_)
         {

@@ -154,7 +154,7 @@ proj_transform::proj_transform(projection const& source, projection const& dest)
         {
 #ifdef MAPNIK_USE_PROJ
             ctx_ = proj_context_create();
-            proj_log_level(ctx_, PJ_LOG_ERROR);
+            proj_log_level(ctx_, PJ_LOG_NONE);
             transform_ = proj_create_crs_to_crs(ctx_, source.params().c_str(), dest.params().c_str(), nullptr);
             if (transform_ == nullptr)
             {

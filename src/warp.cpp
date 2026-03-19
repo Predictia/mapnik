@@ -141,6 +141,8 @@ MAPNIK_DECL void warp_image(T& target,
 
     double max_step = (max - min) / 2.0;
 
+    std::cout<<"max: " << max << " min: " << min << " max_step: " << max_step << std::endl;
+
     MAPNIK_LOG_DEBUG(warp) << "max_step: " << max_step;
 
     agg::rasterizer_scanline_aa<> rasterizer;
@@ -309,6 +311,7 @@ struct warp_image_visitor
     {
         using image_type = T;
         // source and target image data types must match
+        std::cout<<"Warping image of type: " << typeid(image_type).name() << std::endl;
         if (target_raster_.data_.template is<image_type>())
         {
             image_type& target = util::get<image_type>(target_raster_.data_);

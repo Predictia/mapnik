@@ -281,6 +281,8 @@ void render_raster_symbolizer(raster_symbolizer const& sym,
     raster_ptr const& source = feature.get_raster();
     if (source)
     {
+
+        std::cout << "Processing raster symbolizer for feature" << std::endl;
         box2d<double> target_ext = box2d<double>(source->ext_);
         box2d<double> target_query_ext = box2d<double>(source->query_ext_);
 
@@ -306,6 +308,9 @@ void render_raster_symbolizer(raster_symbolizer const& sym,
         int end_y = static_cast<int>(std::floor(query_ext.maxy() + .5));
         int raster_width = end_x - start_x;
         int raster_height = end_y - start_y;
+
+        std::cout << "Raster dimensions: width=" << raster_width << " height=" << raster_height << std::endl;
+        
         if (raster_width > 0 && raster_height > 0)
         {
             scaling_method_e scaling_method =

@@ -283,11 +283,21 @@ void render_raster_symbolizer(raster_symbolizer const& sym,
     {
         box2d<double> target_ext = box2d<double>(source->ext_);
         box2d<double> target_query_ext = box2d<double>(source->query_ext_);
+
+        // If target_ext is invalid and geographic, fix (clip to world bounds) to avoid issues with reprojection
+        if (prj_trans.definition().find("xy_out=deg") != std::string::npos && prj_trans.definition().find("inv") != std::string::npos)
+        {
+            target_ext.clip(box2d<double>(-180.0, -90.0, 180.0, 90.0));
+            target_query_ext.clip(box2d<double>(-180.0, -90.0, 180.0, 90.0));
+        }
+
         if (!prj_trans.equal())
         {
             prj_trans.backward(target_ext, PROJ_ENVELOPE_POINTS);
             prj_trans.backward(target_query_ext, PROJ_ENVELOPE_POINTS);
         }
+
+        // Transformacion a coordenadas de raster
         box2d<double> ext = common.t_.forward(target_ext);
         box2d<double> query_ext = common.t_.forward(target_query_ext);
         int start_x = static_cast<int>(std::floor(query_ext.minx() + .5));
@@ -368,6 +378,12 @@ void render_raster_symbolizer(raster_symbolizer const& sym,
                                                        scale);
                 util::apply_visitor(dispatcher, source->data_);
             }
+        } else {
+            // Dump error info:
+            std::cerr << "Invalid raster dimensions: width=" << raster_width << " height=" << raster_height << std::endl;
+            std::cerr << "Query extent: " << query_ext << std::endl;
+            std::cerr << "Target query extent: " << target_query_ext << std::endl;
+            std::cerr << "Target extent: " << target_ext << std::endl;
         }
     }
 }
